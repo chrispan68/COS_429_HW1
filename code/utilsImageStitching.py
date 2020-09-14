@@ -2,7 +2,8 @@ import os, sys
 import cv2
 import random
 import numpy as np
-from detectBlobs import DetectBlobs
+# from detectBlobs import DetectBlobs
+from detectBlobsSolution import DetectBlobs
 
 # detectKeypoints(...): Detect feature keypoints in the input image
 #   You can either reuse your blob detector from part 1 of this assignment
@@ -15,13 +16,8 @@ from detectBlobs import DetectBlobs
 
 def detectKeypoints(im):
     # YOUR CODE STARTS HERE
-    h, w = im.shape
-    return {'pt': np.array([[h//5*2,w//3], [h//5, w//3*2],
-                            [h//5*4, w//3], [h//5*3, w//3*2]]),
-            'radius': np.array([1,1,1,1]),
-            'score': np.array([1,1,1,1])}
-
-
+    blobs = DetectBlobs(im)
+    return blobs
 
 
 # computeDescriptors(...): compute descriptors from the detected keypoints
@@ -39,8 +35,9 @@ def detectKeypoints(im):
 #                      and dim is the dimension of each descriptor. 
 #
 def computeDescriptors(im, keypoints):
-    # YOUR CODE STARTS HERE
-    return np.zeros(shape=(len(keypoints['pt']), 10), dtype=np.float32)
+    if len(im.shape) > 2:
+        im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+    return computeSIFTDescriptors(im, keypoints)
 
 
 # computeSIFTDescriptors(...): compute SIFT feature descriptors from the
@@ -95,8 +92,27 @@ def computeSIFTDescriptors(im, keypoints):
 #         index2       - 1-D array contains the indices of descriptors2 in matches
 
 def getMatches(descriptors1, descriptors2):
-    # YOUR CODE STARTS HERE
-    return np.array(range(len(descriptors1))), np.array(range(len(descriptors2)))
+    distances_matrix = np.empty((descriptors1.shape[0], descriptors2.shape[0]))
+
+    # Wonder if there's a more efficient way to do this
+    for i in range(distances_matrix.shape[0]):
+        for j in range(distances_matrix.shape[1]):
+            distances_matrix[i][j] = np.sqrt(np.sum((descriptors1[i] - descriptors2[j])**2))
+    
+    sort_indices = np.argsort(distances_matrix)
+
+    index1 = [None] * descriptors1.shape[0]
+    index2 = [None] * descriptors2.shape[0]
+
+    for i in range(len(index1)):
+        first = sort_indices[i][0]
+        second = sort_indices[i][1]
+
+        if distances_matrix[i][first] >= distances_matrix[i][second] * 0.75:
+            index1[i] = first
+            index2[first] = i
+
+    return (index1, index2)
 
 
 
@@ -181,3 +197,16 @@ def drawMatches(im1, im2, matches, keypoints1, keypoints2, title='matches'):
     cv2.imshow(title, im_matches)
 
 
+image_path = '../data/uttower_left.jpg'
+im1 = cv2.imread(image_path)
+image_path = '../data/uttower_right.jpg'
+im2 = cv2.imread(image_path)
+left_keypoints = detectKeypoints(im1)
+print("Number of keypoints in left:", left_keypoints.shape[0])
+right_keypoints = detectKeypoints(im2)
+print("Number of keypoints in right:", right_keypoints.shape[0])
+left_descriptors = computeDescriptors(im1, left_keypoints)
+right_descriptors = computeDescriptors(im2, right_keypoints)
+i1, i2 = getMatches(left_descriptors, right_descriptors)
+print(i1)
+print(i2)
