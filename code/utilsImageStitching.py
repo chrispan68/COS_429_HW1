@@ -1,9 +1,10 @@
+
 import os, sys
 import cv2
 import random
 import numpy as np
 # from detectBlobs import DetectBlobs
-from detectBlobs import DetectBlobs
+from detectBlobsSolution import DetectBlobs
 
 # detectKeypoints(...): Detect feature keypoints in the input image
 #   You can either reuse your blob detector from part 1 of this assignment
@@ -92,12 +93,14 @@ def computeSIFTDescriptors(im, keypoints):
 #         index2       - 1-D array contains the indices of descriptors2 in matches
 
 def getMatches(descriptors1, descriptors2):
+    distances_matrix = np.empty((descriptors1.shape[0], descriptors2.shape[0]))
+
     # Wonder if there's a more efficient way to do this
-    distances_matrix = descriptors1 * descriptors2.T
+    for i in range(distances_matrix.shape[0]):
+        for j in range(distances_matrix.shape[1]):
+            distances_matrix[i][j] = np.sqrt(np.sum((descriptors1[i] - descriptors2[j])**2))
     
     sort_indices = np.argsort(distances_matrix)
-    print(distances_matrix)
-    print(sort_indices)
 
     index1 = []
     index2 = []
@@ -270,12 +273,6 @@ def drawMatches(im1, im2, matches, keypoints1, keypoints2, title='matches'):
     cv2.destroyAllWindows()
 
 
-a = np.array([[1 , 3, 5], [2, 2, 2], [5, 3, 1]])
-b = np.array([[1 , 3, 5], [2, 2, 2], [5, 3, 1]])
-
-getMatches(a, b)
-
-"""
 image_path = '../data/uttower_left.jpg'
 im1 = cv2.imread(image_path)
 image_path = '../data/uttower_right.jpg'
@@ -287,6 +284,10 @@ print("Number of keypoints in right:", right_keypoints.shape[0])
 left_descriptors = computeDescriptors(im1, left_keypoints)
 right_descriptors = computeDescriptors(im2, right_keypoints)
 i1, i2 = getMatches(left_descriptors, right_descriptors)
-print(i1)
-print(i2)
-"""
+H, num_inliers = RANSAC((i1, i2), left_keypoints, right_keypoints)
+print(H)
+print(num_inliers)
+
+
+
+# drawMatches(im1, im2, (i1, i2), left_keypoints, right_keypoints)
