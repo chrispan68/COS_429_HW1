@@ -16,8 +16,15 @@ from detectBlobsSolution import DetectBlobs
 
 def detectKeypoints(im):
     # YOUR CODE STARTS HERE
-    blobs = DetectBlobs(im)
+    blobs = []
+    for blob in DetectBlobs(im):
+        y = blob[0]
+        x = blob[1]
+        radius = blob[2]
+        score = blob[3]
+        blobs.append({"x":x, "y":y, "radius":radius, "score":score})
     return blobs
+    # return DetectBlobs(im)
 
 
 # computeDescriptors(...): compute descriptors from the detected keypoints
@@ -37,7 +44,14 @@ def detectKeypoints(im):
 def computeDescriptors(im, keypoints):
     if len(im.shape) > 2:
         im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
-    return computeSIFTDescriptors(im, keypoints)
+    
+    blobs = []
+    for kpt in keypoints:
+        blobs.append([kpt['y'], kpt['x'], kpt['radius'], kpt['score']])
+    
+    blobs = np.stack(blobs)
+    # blobs = keypoints
+    return computeSIFTDescriptors(im, blobs)
 
 
 # computeSIFTDescriptors(...): compute SIFT feature descriptors from the
@@ -98,7 +112,7 @@ def getMatches(descriptors1, descriptors2):
     for i in range(distances_matrix.shape[0]):
         for j in range(distances_matrix.shape[1]):
             distances_matrix[i][j] = np.sqrt(np.sum((descriptors1[i] - descriptors2[j])**2))
-    
+    print("Shape of distances matrix:", distances_matrix.shape)
     sort_indices = np.argsort(distances_matrix)
 
     index1 = []
@@ -146,31 +160,37 @@ def RANSAC(matches, keypoints1, keypoints2):
     # Begin RANSAC
     for n in range(N):
         randoms = np.random.rand(s) * len(idx1)
+        randoms = randoms.astype(int)
         samples = []
 
         # Get s matches of the form (x_i, x_i') where x_i has an x and y coordinate
         for random in randoms:
-            random = int(random)
-            orig_kpt = (keypoints1[idx1[random]][0], keypoints1[idx1[random]][1])
-            dst_kpt = (keypoints2[idx2[random]][0], keypoints2[idx2[random]][1])
+            orig_kpt = (keypoints1[idx1[random]]['x'], keypoints1[idx1[random]]['y'])
+            dst_kpt = (keypoints2[idx2[random]]['x'], keypoints2[idx2[random]]['y'])
             samples.append((orig_kpt, dst_kpt))
 
         H = get_H_matrix(samples)
         inliers = 0
         for i in range(len(idx1)):
-            if i in randoms:
-                print("Random!")
-            orig_kpt = np.array([keypoints1[idx1[i]][0], keypoints1[idx1[i]][1], 1])
-            dst_kpt = np.array([keypoints2[idx2[i]][0], keypoints2[idx2[i]][1], 1]) 
+            orig_kpt = np.array([keypoints1[idx1[i]]['x'], keypoints1[idx1[i]]['y'], 1])
+            print("Left Image Keypoint")
+            print(orig_kpt)
+            dst_kpt = np.array([keypoints2[idx2[i]]['x'], keypoints2[idx2[i]]['y'], 1])
+            print("Right Image Keypoint")
             print(dst_kpt)
             transf_kpt =  np.matmul(orig_kpt, H)
+            print("Transformed Left Keypoint before Homogenization")
+            print(transf_kpt)
+            transf_kpt = transf_kpt / transf_kpt[2]
+            print("Transformed Left Keypoint after Homogenization")
             print(transf_kpt)
             dist = np.sqrt(np.sum((transf_kpt - dst_kpt) ** 2))
-            print(dist)
+            print("Distance:", dist)
             if dist < thresh:
                 inliers += 1
             print()
-        print(inliers)
+        print("Num inliers:", inliers)
+        
         if inliers > winning_inliers:
             winning_inliers = inliers
             winning_H = H
@@ -181,6 +201,8 @@ def RANSAC(matches, keypoints1, keypoints2):
 
 # Helper function to compute the homography matrix H
 def get_H_matrix(samples):
+    print("Samples")
+    print(samples)
 
     # Create matrix A of size 2n x 9 where n is the number of samples
     A = []
@@ -198,11 +220,16 @@ def get_H_matrix(samples):
         A.append(line2)
     
     A = np.stack(A)
+    print("A")
+    print(A)
+    print(A.shape)
     
     # Compute eigenvectors and eigenvalues of AT*A and find smallest eigenvalue
-    eigenvalues, eigenvectors = np.linalg.eig(np.matmul(A.T, A))
-    i_smallest = np.argsort(eigenvalues)[0]
-    smallest_ev = eigenvectors[:, i_smallest]
+    eigenvalues, eigenvectors = np.linalg.eigh(np.matmul(A.T, A))
+    print("Eigenvalues:", eigenvalues)
+    print("Eigenvectors:", eigenvectors)
+    smallest_ev = eigenvectors[:, 0]
+    print(smallest_ev)
     return smallest_ev.reshape((3,3))
 
 
@@ -255,15 +282,15 @@ def drawMatches(im1, im2, matches, keypoints1, keypoints2, title='matches'):
         cv2matches.append(cv2.DMatch(i, j, _distance=0))
 
     _kp1, _kp2 = [], []
-    # for i in range(len(keypoints1['pt'])):
-    #     _kp1.append(cv2.KeyPoint(keypoints1['pt'][i][1], keypoints1['pt'][i][0], _size=keypoints1['radius'][i], _response=keypoints1['score'][i], _class_id=len(_kp1)))
-    # for i in range(len(keypoints2['pt'])):
-    #     _kp2.append(cv2.KeyPoint(keypoints2['pt'][i][1], keypoints2['pt'][i][0], _size=keypoints2['radius'][i], _response=keypoints2['score'][i], _class_id=len(_kp2)))
-    
     for i in range(len(keypoints1)):
-        _kp1.append(cv2.KeyPoint(keypoints1[i][1], keypoints1[i][0], _size=keypoints1[i][2], _response=keypoints1[i][3], _class_id=len(_kp1)))
+        _kp1.append(cv2.KeyPoint(keypoints1[i]['x'], keypoints1[i]['y'], _size=keypoints1[i]['radius'], _response=keypoints1[i]['score'], _class_id=len(_kp1)))
     for i in range(len(keypoints2)):
-        _kp2.append(cv2.KeyPoint(keypoints2[i][1], keypoints2[i][0], _size=keypoints2[i][2], _response=keypoints2[i][3], _class_id=len(_kp2)))
+        _kp2.append(cv2.KeyPoint(keypoints2[i]['x'], keypoints2[i]['y'], _size=keypoints2[i]['radius'], _response=keypoints2[i]['score'], _class_id=len(_kp2)))
+    
+    # for i in range(len(keypoints1)):
+    #     _kp1.append(cv2.KeyPoint(keypoints1[i][1], keypoints1[i][0], _size=keypoints1[i][2], _response=keypoints1[i][3], _class_id=len(_kp1)))
+    # for i in range(len(keypoints2)):
+    #     _kp2.append(cv2.KeyPoint(keypoints2[i][1], keypoints2[i][0], _size=keypoints2[i][2], _response=keypoints2[i][3], _class_id=len(_kp2)))
 
     im_matches = np.empty((max(im1.shape[0], im2.shape[0]), im1.shape[1]+im2.shape[1], 3), dtype=np.uint8)
     cv2.drawMatches(im1, _kp1, im2, _kp2, cv2matches, im_matches, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
@@ -277,12 +304,14 @@ im1 = cv2.imread(image_path)
 image_path = '../data/uttower_right.jpg'
 im2 = cv2.imread(image_path)
 left_keypoints = detectKeypoints(im1)
-print("Number of keypoints in left:", left_keypoints.shape[0])
+print("Number of keypoints in left:", len(left_keypoints))
 right_keypoints = detectKeypoints(im2)
-print("Number of keypoints in right:", right_keypoints.shape[0])
+print("Number of keypoints in right:", len(right_keypoints))
 left_descriptors = computeDescriptors(im1, left_keypoints)
 right_descriptors = computeDescriptors(im2, right_keypoints)
 i1, i2 = getMatches(left_descriptors, right_descriptors)
+print(len(i1))
+print(len(i2))
 H, num_inliers = RANSAC((i1, i2), left_keypoints, right_keypoints)
 print(H)
 print(num_inliers)
