@@ -51,7 +51,7 @@ def DetectBlobs(
     im,
     sigma = 2,
     num_intervals = 12,
-    threshold = 1.1e-2
+    threshold = 1.2e-2
     ):
 
     # Convert image to grayscale and convert it to double [0 1].
@@ -79,42 +79,21 @@ def DetectBlobs(
     # 4) Checks if the given pixel is greater than the activation threshold. 
     # 
     # Result: min_max contains a 3d numpy array of booleans. Radii is a 1d list of radii. Scores is a 3d numpy array of floats. 
-    scores = []
-    min_max = []
-    radii = []
     pow = 0
-    while min(im_height, im_width)>= (3*sigma + 1) * 2**pow:
+    blobs = []
+    while min(im_height, im_width)>= (sigma + 1) * 2**pow:
         resized = cv2.resize(im, (int(im_width / 2**pow) , int(im_height / 2**pow)), interpolation = cv2.INTER_AREA)
         DoG = []
         for i,kernel in enumerate(dog_kernels):
-            conv = ndimage.convolve(resized, kernel)
-            DoG.append(conv)
-            scores.append(cv2.resize(conv, (im_width, im_height), interpolation = cv2.INTER_AREA))
-            radii.append(2**pow * sigmas[i] * np.sqrt(2))
-        DoG = np.stack(DoG)
-        min_max.append(sparse_expand(((DoG == ndimage.maximum_filter(DoG, size=5)) | (-DoG == ndimage.maximum_filter(-DoG, size=5))), im_width, im_height, 2**pow))
+            DoG.append(ndimage.convolve(resized, kernel))
+        DoG = abs(np.stack(DoG))
+        min_max = (DoG > threshold) & (DoG == ndimage.maximum_filter(DoG, size=5))
+        layer, x, y = np.where(min_max == 1)
+        for i, j, k in zip(layer, x, y):
+            blobs.append((j * 2**pow, k * 2**pow, 2**pow * sigmas[i] * np.sqrt(2), DoG[i][j][k]))
         pow += 1
     
-    #This section of code calculates the minmax kernel. 
-    scores = abs(np.stack(scores))
-    min_max = np.concatenate(min_max, axis=0)
-    blobs = []
-    for i in range(0, min_max.shape[0]):
-        for j in range(0, min_max.shape[1]):
-            for k in range(0, min_max.shape[2]):
-                if min_max[i][j][k]:
-                    if scores[i][j][k] > threshold:
-                        blobs.append((j, k, radii[i], scores[i][j][k]))
     return np.array(blobs)
-
-def sparse_expand(orig, width, height, scale):
-    full = np.zeros((orig.shape[0], height, width))
-    for i in range(orig.shape[0]):
-        for j in range(orig.shape[1]):
-            for k in range(orig.shape[2]):
-                if orig[i][j][k]:
-                    full[i][j * scale][k*scale] = 1
-    return full
 
 def gaussian(sigma, side_length):
     filter = np.zeros([side_length, side_length], dtype=float)
