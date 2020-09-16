@@ -1,10 +1,9 @@
-
 import os, sys
 import cv2
 import random
 import numpy as np
 # from detectBlobs import DetectBlobs
-from detectBlobsSolution import DetectBlobs
+from detectBlobs import DetectBlobs
 
 # detectKeypoints(...): Detect feature keypoints in the input image
 #   You can either reuse your blob detector from part 1 of this assignment
@@ -136,7 +135,6 @@ def getMatches(descriptors1, descriptors2):
 def RANSAC(matches, keypoints1, keypoints2):
     N = 9
     s = 4
-    d = 10
     thresh = 4
 
     idx1, idx2 = matches
@@ -146,12 +144,11 @@ def RANSAC(matches, keypoints1, keypoints2):
 
     # Begin RANSAC
     for n in range(N):
-        randoms = np.random.rand(s) * len(idx1)
+        randoms = (np.random.rand(s) * len(idx1)).astype(int)
         samples = []
 
         # Get s matches of the form (x_i, x_i') where x_i has an x and y coordinate
         for random in randoms:
-            random = int(random)
             orig_kpt = (keypoints1[idx1[random]][0], keypoints1[idx1[random]][1])
             dst_kpt = (keypoints2[idx2[random]][0], keypoints2[idx2[random]][1])
             samples.append((orig_kpt, dst_kpt))
@@ -159,18 +156,16 @@ def RANSAC(matches, keypoints1, keypoints2):
         H = get_H_matrix(samples)
         inliers = 0
         for i in range(len(idx1)):
-            if i in randoms:
-                print("Random!")
             orig_kpt = np.array([keypoints1[idx1[i]][0], keypoints1[idx1[i]][1], 1])
             dst_kpt = np.array([keypoints2[idx2[i]][0], keypoints2[idx2[i]][1], 1]) 
-            print(dst_kpt)
-            transf_kpt =  np.matmul(orig_kpt, H)
-            print(transf_kpt)
+            transf_kpt = H * orig_kpt
             dist = np.sqrt(np.sum((transf_kpt - dst_kpt) ** 2))
-            print(dist)
+            if i in randoms:
+                print(transf_kpt)
+                print(dst_kpt)
+                print(dist)
             if dist < thresh:
                 inliers += 1
-            print()
         print(inliers)
         if inliers > winning_inliers:
             winning_inliers = inliers
@@ -227,6 +222,8 @@ def get_H_matrix(samples):
 
 def warpImageWithMapping(im_left, im_right, H):
     # YOUR CODE STARTS HERE
+
+    cv2.warp
     new_image = np.empty((max(im_left.shape[0], im_right.shape[0]), im_left.shape[1]+im_right.shape[1]), dtype=np.uint8)
     new_image[:im_left.shape[0], :im_left.shape[1]] = im_left
     new_image[:im_right.shape[0], im_left.shape[1]:] = im_right
@@ -256,11 +253,6 @@ def drawMatches(im1, im2, matches, keypoints1, keypoints2, title='matches'):
         cv2matches.append(cv2.DMatch(i, j, _distance=0))
 
     _kp1, _kp2 = [], []
-    # for i in range(len(keypoints1['pt'])):
-    #     _kp1.append(cv2.KeyPoint(keypoints1['pt'][i][1], keypoints1['pt'][i][0], _size=keypoints1['radius'][i], _response=keypoints1['score'][i], _class_id=len(_kp1)))
-    # for i in range(len(keypoints2['pt'])):
-    #     _kp2.append(cv2.KeyPoint(keypoints2['pt'][i][1], keypoints2['pt'][i][0], _size=keypoints2['radius'][i], _response=keypoints2['score'][i], _class_id=len(_kp2)))
-    
     for i in range(len(keypoints1)):
         _kp1.append(cv2.KeyPoint(keypoints1[i][1], keypoints1[i][0], _size=keypoints1[i][2], _response=keypoints1[i][3], _class_id=len(_kp1)))
     for i in range(len(keypoints2)):
@@ -283,11 +275,17 @@ right_keypoints = detectKeypoints(im2)
 print("Number of keypoints in right:", right_keypoints.shape[0])
 left_descriptors = computeDescriptors(im1, left_keypoints)
 right_descriptors = computeDescriptors(im2, right_keypoints)
-i1, i2 = getMatches(left_descriptors, right_descriptors)
-H, num_inliers = RANSAC((i1, i2), left_keypoints, right_keypoints)
-print(H)
-print(num_inliers)
+matches = getMatches(left_descriptors, right_descriptors)
 
+src_pnts = []
+dest_pnts = []
+for f, s in zip(matches[0], matches[1]):
+    src_pnts.append(left_keypoints[f][:2])
+    dest_pnts.append(right_keypoints[s][:2])
+src_pnts = np.array(src_pnts)
+print(src_pnts)
+M, mask = cv2.findHomography(np.array(src_pnts), np.array(dest_pnts), cv2.RANSAC, 5.0)
 
+print(M)
 
 # drawMatches(im1, im2, (i1, i2), left_keypoints, right_keypoints)
