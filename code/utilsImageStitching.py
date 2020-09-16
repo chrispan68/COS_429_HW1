@@ -25,7 +25,6 @@ def detectKeypoints(im):
         score = blob[3]
         blobs.append({"x":x, "y":y, "radius":radius, "score":score})
     return blobs
-    # return DetectBlobs(im)
 
 
 # computeDescriptors(...): compute descriptors from the detected keypoints
@@ -51,7 +50,6 @@ def computeDescriptors(im, keypoints):
         blobs.append([kpt['y'], kpt['x'], kpt['radius'], kpt['score']])
     
     blobs = np.stack(blobs)
-    # blobs = keypoints
     return computeSIFTDescriptors(im, blobs)
 
 
@@ -171,40 +169,36 @@ def RANSAC(matches, keypoints1, keypoints2):
             samples.append((orig_kpt, dst_kpt))
 
         H = get_H_matrix(samples)
+
         inliers = 0
         for i in range(len(idx1)):
             orig_kpt = np.array([keypoints1[idx1[i]]['x'], keypoints1[idx1[i]]['y'], 1])
-            print("Left Image Keypoint")
-            print(orig_kpt)
+            # print("Left Image Keypoint")
+            # print(orig_kpt)
             dst_kpt = np.array([keypoints2[idx2[i]]['x'], keypoints2[idx2[i]]['y'], 1])
-            print("Right Image Keypoint")
-            print(dst_kpt)
-            transf_kpt =  np.matmul(orig_kpt, H)
-            print("Transformed Left Keypoint before Homogenization")
-            print(transf_kpt)
+            # print("Right Image Keypoint")
+            # print(dst_kpt)
+            transf_kpt =  np.matmul(H, orig_kpt)
+            # print("Transformed Left Keypoint before Homogenization")
+            # print(transf_kpt)
             transf_kpt = transf_kpt / transf_kpt[2]
-            print("Transformed Left Keypoint after Homogenization")
-            print(transf_kpt)
+            # print("Transformed Left Keypoint after Homogenization")
+            # print(transf_kpt)
             dist = np.sqrt(np.sum((transf_kpt - dst_kpt) ** 2))
-            print("Distance:", dist)
+            # print("Distance:", dist)
             if dist < thresh:
                 inliers += 1
-            print()
-        print("Num inliers:", inliers)
+        # print("Num inliers:", inliers)
         
         if inliers > winning_inliers:
             winning_inliers = inliers
             winning_H = H
         
-        break # for debugging
     
     return winning_H, winning_inliers
 
 # Helper function to compute the homography matrix H
 def get_H_matrix(samples):
-    print("Samples")
-    print(samples)
-
     # Create matrix A of size 2n x 9 where n is the number of samples
     A = []
     for i in range(len(samples)):
@@ -221,16 +215,10 @@ def get_H_matrix(samples):
         A.append(line2)
     
     A = np.stack(A)
-    print("A")
-    print(A)
-    print(A.shape)
     
     # Compute eigenvectors and eigenvalues of AT*A and find smallest eigenvalue
-    eigenvalues, eigenvectors = np.linalg.eigh(np.matmul(A.T, A))
-    print("Eigenvalues:", eigenvalues)
-    print("Eigenvectors:", eigenvectors)
+    eigenvalues, eigenvectors = np.linalg.eigh(np.dot(A.T, A))
     smallest_ev = eigenvectors[:, 0]
-    print(smallest_ev)
     return smallest_ev.reshape((3,3))
 
 
@@ -319,4 +307,4 @@ print(num_inliers)
 
 
 
-# drawMatches(im1, im2, (i1, i2), left_keypoints, right_keypoints)
+drawMatches(im1, im2, (i1, i2), left_keypoints, right_keypoints)
