@@ -3,8 +3,8 @@ import os, sys
 import cv2
 import random
 import numpy as np
-# from detectBlobs import DetectBlobs
-from detectBlobsSolution import DetectBlobs
+from detectBlobs import DetectBlobs
+# from detectBlobsSolution import DetectBlobs
 
 # detectKeypoints(...): Detect feature keypoints in the input image
 #   You can either reuse your blob detector from part 1 of this assignment
@@ -196,7 +196,7 @@ def RANSAC(matches, keypoints1, keypoints2):
             winning_inliers = inliers
             winning_H = H
         
-        break
+        break # for debugging
     
     return winning_H, winning_inliers
 
