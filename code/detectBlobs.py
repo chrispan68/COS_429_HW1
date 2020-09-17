@@ -51,7 +51,7 @@ def DetectBlobs(
     im,
     sigma = 2,
     num_intervals = 12,
-    threshold = 1.2e-2
+    threshold = 5e-3
     ):
 
     # Convert image to grayscale and convert it to double [0 1].
@@ -102,9 +102,3 @@ def gaussian(sigma, side_length):
         for j in range(0, side_length):
             filter[i][j] = (1 / (2 * np.pi * sigma**2)) * np.exp(((i-middle)**2 + (j-middle)**2) / (-2 * sigma**2))
     return filter
-
-"""
-arr = gaussian(2)
-print('\n'.join([''.join(['{:10}'.format(round(item, 4)) for item in row]) 
-      for row in arr]))
-"""

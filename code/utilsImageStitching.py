@@ -16,7 +16,16 @@ from detectBlobs import DetectBlobs
 
 def detectKeypoints(im):
     # YOUR CODE STARTS HERE
-    blobs = DetectBlobs(im)
+    max = 1500
+    blobs = []
+    for blob in DetectBlobs(im):
+        y = blob[0]
+        x = blob[1]
+        radius = blob[2]
+        score = blob[3]
+        blobs.append({"x":x, "y":y, "radius":radius, "score":score})
+    blobs = sorted(blobs, key=lambda x: -x["score"])[:max]
+    print('There are ', len(blobs), " keypoints")
     return blobs
 
 
@@ -37,7 +46,14 @@ def detectKeypoints(im):
 def computeDescriptors(im, keypoints):
     if len(im.shape) > 2:
         im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
-    return computeSIFTDescriptors(im, keypoints)
+    
+    blobs = []
+    for kpt in keypoints:
+        blobs.append([kpt['y'], kpt['x'], kpt['radius'], kpt['score']])
+    
+    blobs = np.stack(blobs)
+    print("finished descriptors")
+    return computeSIFTDescriptors(im, blobs)
 
 
 # computeSIFTDescriptors(...): compute SIFT feature descriptors from the
@@ -98,7 +114,6 @@ def getMatches(descriptors1, descriptors2):
     for i in range(distances_matrix.shape[0]):
         for j in range(distances_matrix.shape[1]):
             distances_matrix[i][j] = np.sqrt(np.sum((descriptors1[i] - descriptors2[j])**2))
-    
     sort_indices = np.argsort(distances_matrix)
 
     index1 = []
@@ -111,7 +126,7 @@ def getMatches(descriptors1, descriptors2):
         if distances_matrix[i][first] < distances_matrix[i][second] * 0.75:
             index1.append(i)
             index2.append(first)
-
+    print("Finished getting matches")
     return (index1, index2)
 
 
@@ -144,40 +159,47 @@ def RANSAC(matches, keypoints1, keypoints2):
 
     # Begin RANSAC
     for n in range(N):
-        randoms = (np.random.rand(s) * len(idx1)).astype(int)
+        randoms = np.random.rand(s) * len(idx1)
+        randoms = randoms.astype(int)
         samples = []
 
         # Get s matches of the form (x_i, x_i') where x_i has an x and y coordinate
         for random in randoms:
-            orig_kpt = (keypoints1[idx1[random]][0], keypoints1[idx1[random]][1])
-            dst_kpt = (keypoints2[idx2[random]][0], keypoints2[idx2[random]][1])
+            orig_kpt = (keypoints1[idx1[random]]['x'], keypoints1[idx1[random]]['y'])
+            dst_kpt = (keypoints2[idx2[random]]['x'], keypoints2[idx2[random]]['y'])
             samples.append((orig_kpt, dst_kpt))
 
         H = get_H_matrix(samples)
+
         inliers = 0
         for i in range(len(idx1)):
-            orig_kpt = np.array([keypoints1[idx1[i]][0], keypoints1[idx1[i]][1], 1])
-            dst_kpt = np.array([keypoints2[idx2[i]][0], keypoints2[idx2[i]][1], 1]) 
-            transf_kpt = H * orig_kpt
+            orig_kpt = np.array([keypoints1[idx1[i]]['x'], keypoints1[idx1[i]]['y'], 1])
+            # print("Left Image Keypoint")
+            # print(orig_kpt)
+            dst_kpt = np.array([keypoints2[idx2[i]]['x'], keypoints2[idx2[i]]['y'], 1])
+            # print("Right Image Keypoint")
+            # print(dst_kpt)
+            transf_kpt =  np.matmul(H, orig_kpt)
+            # print("Transformed Left Keypoint before Homogenization")
+            # print(transf_kpt)
+            transf_kpt = transf_kpt / transf_kpt[2]
+            # print("Transformed Left Keypoint after Homogenization")
+            # print(transf_kpt)
             dist = np.sqrt(np.sum((transf_kpt - dst_kpt) ** 2))
-            if i in randoms:
-                print(transf_kpt)
-                print(dst_kpt)
-                print(dist)
+            # print("Distance:", dist)
             if dist < thresh:
                 inliers += 1
-        print(inliers)
+        # print("Num inliers:", inliers)
+        
         if inliers > winning_inliers:
             winning_inliers = inliers
             winning_H = H
         
-        break
     
     return winning_H, winning_inliers
 
 # Helper function to compute the homography matrix H
 def get_H_matrix(samples):
-
     # Create matrix A of size 2n x 9 where n is the number of samples
     A = []
     for i in range(len(samples)):
@@ -196,9 +218,8 @@ def get_H_matrix(samples):
     A = np.stack(A)
     
     # Compute eigenvectors and eigenvalues of AT*A and find smallest eigenvalue
-    eigenvalues, eigenvectors = np.linalg.eig(np.matmul(A.T, A))
-    i_smallest = np.argsort(eigenvalues)[0]
-    smallest_ev = eigenvectors[:, i_smallest]
+    eigenvalues, eigenvectors = np.linalg.eigh(np.dot(A.T, A))
+    smallest_ev = eigenvectors[:, 0]
     return smallest_ev.reshape((3,3))
 
 
@@ -221,13 +242,32 @@ def get_H_matrix(samples):
 #       You can use cv2.warpPerspective(...) to warp your image using H
 
 def warpImageWithMapping(im_left, im_right, H):
+    
     # YOUR CODE STARTS HERE
-
-    cv2.warp
-    new_image = np.empty((max(im_left.shape[0], im_right.shape[0]), im_left.shape[1]+im_right.shape[1]), dtype=np.uint8)
-    new_image[:im_left.shape[0], :im_left.shape[1]] = im_left
-    new_image[:im_right.shape[0], im_left.shape[1]:] = im_right
-    return new_image
+    corners = np.array([
+        [0, 0, 1],
+        [0, im_left.shape[0], 1],
+        [im_left.shape[1], 0, 1],
+        [im_left.shape[1], im_left.shape[0], 1] 
+    ]).T
+    corners = np.matmul(H, corners)
+    x_max = im_right.shape[1]
+    y_max = im_right.shape[0]
+    x_min = 0
+    y_min = 0
+    for i in range(4):
+        x_max = max(x_max , corners[0][i] / corners[2][i])
+        y_max = max(y_max , corners[1][i] / corners[2][i])
+        x_min = min(x_min , corners[0][i] / corners[2][i])
+        y_min = min(y_min , corners[1][i] / corners[2][i])
+    translation = np.array([
+        [1, 0, -x_min],
+        [0, 1, -y_min],
+        [0, 0, 1]
+    ])
+    im_right = cv2.warpPerspective(im_right, translation, ((int)(x_max - x_min), (int)(y_max - y_min)))
+    im_left = cv2.warpPerspective(im_left, np.matmul(translation, H), ((int)(x_max - x_min), (int)(y_max - y_min)))
+    return (im_left * 0.5 + im_right * 0.5)/ 255
 
 
 
@@ -254,9 +294,14 @@ def drawMatches(im1, im2, matches, keypoints1, keypoints2, title='matches'):
 
     _kp1, _kp2 = [], []
     for i in range(len(keypoints1)):
-        _kp1.append(cv2.KeyPoint(keypoints1[i][1], keypoints1[i][0], _size=keypoints1[i][2], _response=keypoints1[i][3], _class_id=len(_kp1)))
+        _kp1.append(cv2.KeyPoint(keypoints1[i]['x'], keypoints1[i]['y'], _size=keypoints1[i]['radius'], _response=keypoints1[i]['score'], _class_id=len(_kp1)))
     for i in range(len(keypoints2)):
-        _kp2.append(cv2.KeyPoint(keypoints2[i][1], keypoints2[i][0], _size=keypoints2[i][2], _response=keypoints2[i][3], _class_id=len(_kp2)))
+        _kp2.append(cv2.KeyPoint(keypoints2[i]['x'], keypoints2[i]['y'], _size=keypoints2[i]['radius'], _response=keypoints2[i]['score'], _class_id=len(_kp2)))
+    
+    # for i in range(len(keypoints1)):
+    #     _kp1.append(cv2.KeyPoint(keypoints1[i][1], keypoints1[i][0], _size=keypoints1[i][2], _response=keypoints1[i][3], _class_id=len(_kp1)))
+    # for i in range(len(keypoints2)):
+    #     _kp2.append(cv2.KeyPoint(keypoints2[i][1], keypoints2[i][0], _size=keypoints2[i][2], _response=keypoints2[i][3], _class_id=len(_kp2)))
 
     im_matches = np.empty((max(im1.shape[0], im2.shape[0]), im1.shape[1]+im2.shape[1], 3), dtype=np.uint8)
     cv2.drawMatches(im1, _kp1, im2, _kp2, cv2matches, im_matches, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
@@ -264,28 +309,20 @@ def drawMatches(im1, im2, matches, keypoints1, keypoints2, title='matches'):
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
-
-image_path = '../data/uttower_left.jpg'
+"""
+image_path = '../data/image_sets/pier/1.jpg'
 im1 = cv2.imread(image_path)
-image_path = '../data/uttower_right.jpg'
+image_path = '../data/image_sets/pier/2.jpg'
 im2 = cv2.imread(image_path)
 left_keypoints = detectKeypoints(im1)
-print("Number of keypoints in left:", left_keypoints.shape[0])
 right_keypoints = detectKeypoints(im2)
-print("Number of keypoints in right:", right_keypoints.shape[0])
 left_descriptors = computeDescriptors(im1, left_keypoints)
 right_descriptors = computeDescriptors(im2, right_keypoints)
 matches = getMatches(left_descriptors, right_descriptors)
-
-src_pnts = []
-dest_pnts = []
-for f, s in zip(matches[0], matches[1]):
-    src_pnts.append(left_keypoints[f][:2])
-    dest_pnts.append(right_keypoints[s][:2])
-src_pnts = np.array(src_pnts)
-print(src_pnts)
-M, mask = cv2.findHomography(np.array(src_pnts), np.array(dest_pnts), cv2.RANSAC, 5.0)
-
-print(M)
-
-# drawMatches(im1, im2, (i1, i2), left_keypoints, right_keypoints)
+drawMatches(im1, im2, matches, left_keypoints, right_keypoints)
+H, inliers = RANSAC(matches, left_keypoints, right_keypoints)
+output = warpImageWithMapping(im1, im2, H)
+cv2.imshow('Warp Output', np.array(output))
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+"""

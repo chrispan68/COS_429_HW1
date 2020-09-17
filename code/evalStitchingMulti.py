@@ -2,12 +2,13 @@ import os, sys
 import cv2
 import numpy as np
 from utilsImageStitching import *
+from detectBlobs import *
 
 imagePath = sys.argv[1]
 
 images = []
 for fn in os.listdir(imagePath):
-    images.append(cv2.imread(os.path.join(imagePath, fn), cv2.IMREAD_GRAYSCALE))
+    images.append(cv2.imread(os.path.join(imagePath, fn)))
 
 # Build your strategy for multi-image stitching. 
 # For full credit, the order of merging the images should be determined automatically.
@@ -18,13 +19,19 @@ for fn in os.listdir(imagePath):
 
 # YOUR CODE STARTS HERE
 
-imCurrent = images[0]
-for im in images[1:]:
-    defaultH = np.array([[1,0,0], [0,1,0], [0,0,1]])
-    imCurrent = warpImageWithMapping(imCurrent, im, defaultH)
+cv2.imshow('ajisdfjioasdfj', images[0])
+cv2.waitKey(0)
+cv2.destroyAllWindows()
 
-cv2.imwrite(sys.argv[2], imCurrent)
+keypoints = [detectKeypoints(img) for img in images]
+descriptors = [computeDescriptors(img, key) for key,img in zip(keypoints, images)]
+H = [[[], [], []], [[], [], []], [[], [], []]]
+pairs = []
+for i in range(len(images)):
+    for j in range(i+1, len(images)):
+        matches = getMatches(descriptors[i], descriptors[j])
+        H[i][j], inliers = RANSAC(matches, keypoints[i], keypoints[j])
+        pairs.append(((i, j), inliers))
 
-cv2.imshow('Panorama', imCurrent)
 
-cv2.waitKey()
+print(pairs)   
