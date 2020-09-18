@@ -57,6 +57,8 @@ def DetectBlobs(
     # Convert image to grayscale and convert it to double [0 1].
     if len(im.shape) > 2:
         im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)/255
+    else:
+        im = im / 255
 
     # YOUR CODE STARTS HERE
     im_height = im.shape[0]

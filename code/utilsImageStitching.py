@@ -148,7 +148,7 @@ def getMatches(descriptors1, descriptors2):
 #         "reasonable" values and pick the ones that work best.
 
 def RANSAC(matches, keypoints1, keypoints2):
-    N = 9
+    N = 30
     s = 4
     thresh = 4
 
@@ -242,33 +242,46 @@ def get_H_matrix(samples):
 #       You can use cv2.warpPerspective(...) to warp your image using H
 
 def warpImageWithMapping(im_left, im_right, H):
-    
-    # YOUR CODE STARTS HERE
-    corners = np.array([
-        [0, 0, 1],
-        [0, im_left.shape[0], 1],
-        [im_left.shape[1], 0, 1],
-        [im_left.shape[1], im_left.shape[0], 1] 
-    ]).T
-    corners = np.matmul(H, corners)
-    x_max = im_right.shape[1]
-    y_max = im_right.shape[0]
+    H_list= [H, np.eye(3)]
+    images = [im_left, im_right]
+    return warpImagesWithMapping(images, H_list)
+# warpImageWithMapping(...): warp many images using the homography mapping and
+#   composite the warped image and another image into a panorama.
+# 
+#   Input: 
+#        im_list  list of images
+#        H_list      list of 3 x 3 array, a homography mapping
+#  
+#   Output:
+#        Panorama made of the warped images.
+
+def warpImagesWithMapping(im_list, H_list):
+    x_max = 0
+    y_max = 0
     x_min = 0
     y_min = 0
-    for i in range(4):
-        x_max = max(x_max , corners[0][i] / corners[2][i])
-        y_max = max(y_max , corners[1][i] / corners[2][i])
-        x_min = min(x_min , corners[0][i] / corners[2][i])
-        y_min = min(y_min , corners[1][i] / corners[2][i])
+    for im, H in zip(im_list, H_list):
+        corners = np.array([
+            [0, 0, 1],
+            [0, im.shape[0], 1],
+            [im.shape[1], 0, 1],
+            [im.shape[1], im.shape[0], 1] 
+        ]).T
+        corners = np.matmul(H, corners)
+        for i in range(4):
+            x_max = max(x_max , corners[0][i] / corners[2][i])
+            y_max = max(y_max , corners[1][i] / corners[2][i])
+            x_min = min(x_min , corners[0][i] / corners[2][i])
+            y_min = min(y_min , corners[1][i] / corners[2][i])
     translation = np.array([
         [1, 0, -x_min],
         [0, 1, -y_min],
         [0, 0, 1]
     ])
-    im_right = cv2.warpPerspective(im_right, translation, ((int)(x_max - x_min), (int)(y_max - y_min)))
-    im_left = cv2.warpPerspective(im_left, np.matmul(translation, H), ((int)(x_max - x_min), (int)(y_max - y_min)))
-    return (im_left * 0.5 + im_right * 0.5)/ 255
-
+    output_imgs = []
+    for im, H in zip(im_list, H_list):
+        output_imgs.append(cv2.warpPerspective(im, np.matmul(translation, H), ((int)(x_max - x_min), (int)(y_max - y_min))))
+    return (np.sum(output_imgs, axis=0) / 2).astype(int)
 
 
 
@@ -308,21 +321,3 @@ def drawMatches(im1, im2, matches, keypoints1, keypoints2, title='matches'):
     cv2.imshow(title, im_matches)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
-
-"""
-image_path = '../data/image_sets/pier/1.jpg'
-im1 = cv2.imread(image_path)
-image_path = '../data/image_sets/pier/2.jpg'
-im2 = cv2.imread(image_path)
-left_keypoints = detectKeypoints(im1)
-right_keypoints = detectKeypoints(im2)
-left_descriptors = computeDescriptors(im1, left_keypoints)
-right_descriptors = computeDescriptors(im2, right_keypoints)
-matches = getMatches(left_descriptors, right_descriptors)
-drawMatches(im1, im2, matches, left_keypoints, right_keypoints)
-H, inliers = RANSAC(matches, left_keypoints, right_keypoints)
-output = warpImageWithMapping(im1, im2, H)
-cv2.imshow('Warp Output', np.array(output))
-cv2.waitKey(0)
-cv2.destroyAllWindows()
-"""
