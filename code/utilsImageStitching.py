@@ -25,7 +25,6 @@ def detectKeypoints(im):
         score = blob[3]
         blobs.append({"x":x, "y":y, "radius":radius, "score":score})
     blobs = sorted(blobs, key=lambda x: -x["score"])[:max]
-    print('There are ', len(blobs), " keypoints")
     return blobs
 
 
@@ -52,7 +51,6 @@ def computeDescriptors(im, keypoints):
         blobs.append([kpt['y'], kpt['x'], kpt['radius'], kpt['score']])
     
     blobs = np.stack(blobs)
-    print("finished descriptors")
     return computeSIFTDescriptors(im, blobs)
 
 
@@ -126,7 +124,6 @@ def getMatches(descriptors1, descriptors2):
         if distances_matrix[i][first] < distances_matrix[i][second] * 0.75:
             index1.append(i)
             index2.append(first)
-    print("Finished getting matches")
     return (index1, index2)
 
 

@@ -6,6 +6,7 @@ from utilsImageStitching import *
 from detectBlobs import *
 
 imagePath = sys.argv[1]
+output_path = sys.argv[2]
 
 images = []
 for fn in os.listdir(imagePath):
@@ -47,14 +48,11 @@ def union(a, b):
 parent = [i for i in range(len(images))]
 H_list = [np.eye(3) for i in range(len(images))]
 mask = [0 for i in range(len(images))]
-print(match_matrix[1][2])
-print(H_list[1])
 
 for pair in pairs:
     a = pair[0][0]
     b = pair[0][1]
     if root(a) != root(b):
-        print(a, b, pair[1])
         if(pair[1] < 50):
             break
         if(mask[a]):
@@ -65,11 +63,7 @@ for pair in pairs:
         H_list[a] = np.matmul(H_list[b], match_matrix[a][b])
         mask[a] = 1
         mask[b] = 1
-print(mask)
 images = [x for x, y in zip(images, mask) if y]
 H_list = [x for x, y in zip(H_list, mask) if y]
 output = warpImagesWithMapping(images, H_list)
-
-plt.imshow(output, cmap='gray', vmin=0, vmax=255)
-
-plt.show()
+cv2.imwrite(output_path, output)
