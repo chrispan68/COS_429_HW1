@@ -2,7 +2,6 @@ import os, sys
 import cv2
 import random
 import numpy as np
-# from detectBlobs import DetectBlobs
 from detectBlobs import DetectBlobs
 
 # detectKeypoints(...): Detect feature keypoints in the input image
@@ -108,7 +107,6 @@ def computeSIFTDescriptors(im, keypoints):
 def getMatches(descriptors1, descriptors2):
     distances_matrix = np.empty((descriptors1.shape[0], descriptors2.shape[0]))
 
-    # Wonder if there's a more efficient way to do this
     for i in range(distances_matrix.shape[0]):
         for j in range(distances_matrix.shape[1]):
             distances_matrix[i][j] = np.sqrt(np.sum((descriptors1[i] - descriptors2[j])**2))
@@ -171,22 +169,13 @@ def RANSAC(matches, keypoints1, keypoints2):
         inliers = 0
         for i in range(len(idx1)):
             orig_kpt = np.array([keypoints1[idx1[i]]['x'], keypoints1[idx1[i]]['y'], 1])
-            # print("Left Image Keypoint")
-            # print(orig_kpt)
             dst_kpt = np.array([keypoints2[idx2[i]]['x'], keypoints2[idx2[i]]['y'], 1])
-            # print("Right Image Keypoint")
-            # print(dst_kpt)
             transf_kpt =  np.matmul(H, orig_kpt)
-            # print("Transformed Left Keypoint before Homogenization")
-            # print(transf_kpt)
             transf_kpt = transf_kpt / transf_kpt[2]
-            # print("Transformed Left Keypoint after Homogenization")
-            # print(transf_kpt)
             dist = np.sqrt(np.sum((transf_kpt - dst_kpt) ** 2))
-            # print("Distance:", dist)
+
             if dist < thresh:
                 inliers += 1
-        # print("Num inliers:", inliers)
         
         if inliers > winning_inliers:
             winning_inliers = inliers
@@ -242,6 +231,7 @@ def warpImageWithMapping(im_left, im_right, H):
     H_list= [H, np.eye(3)]
     images = [im_left, im_right]
     return warpImagesWithMapping(images, H_list)
+
 # warpImageWithMapping(...): warp many images using the homography mapping and
 #   composite the warped image and another image into a panorama.
 # 
@@ -308,11 +298,6 @@ def drawMatches(im1, im2, matches, keypoints1, keypoints2, title='matches'):
     for i in range(len(keypoints2)):
         _kp2.append(cv2.KeyPoint(keypoints2[i]['x'], keypoints2[i]['y'], _size=keypoints2[i]['radius'], _response=keypoints2[i]['score'], _class_id=len(_kp2)))
     
-    # for i in range(len(keypoints1)):
-    #     _kp1.append(cv2.KeyPoint(keypoints1[i][1], keypoints1[i][0], _size=keypoints1[i][2], _response=keypoints1[i][3], _class_id=len(_kp1)))
-    # for i in range(len(keypoints2)):
-    #     _kp2.append(cv2.KeyPoint(keypoints2[i][1], keypoints2[i][0], _size=keypoints2[i][2], _response=keypoints2[i][3], _class_id=len(_kp2)))
-
     im_matches = np.empty((max(im1.shape[0], im2.shape[0]), im1.shape[1]+im2.shape[1], 3), dtype=np.uint8)
     cv2.drawMatches(im1, _kp1, im2, _kp2, cv2matches, im_matches, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
     cv2.imshow(title, im_matches)

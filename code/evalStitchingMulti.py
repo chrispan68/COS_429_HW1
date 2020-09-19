@@ -33,7 +33,6 @@ for i in range(len(images)):
         pairs.append(((i, j), inliers))
 
 pairs = sorted(pairs, key = lambda x: -x[1])
-# Ya boi's getting fancy with Kruskals
 parent = [i for i in range(len(images))]
 
 def root(a):
